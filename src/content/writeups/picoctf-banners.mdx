@@ -1,0 +1,103 @@
+---
+title: "picoCTF Write‑up — don't you love banners"
+date: "2026-02-20"
+category: "Pwn"
+tags: ["ssh", "privesc", "symlink", "banner"]
+excerpt: "How a Leaked SSH Banner Led to Root Access by abusing symbolic links for privilege escalation."
+image: "/writeups/picoctf-banners/picoctf-banners.jpeg"
+---
+
+# picoCTF Write‑up — don’t you love banners
+
+How a Leaked SSH Banner Led to Root Access. CTF challenges are often built around misconfigurations that look harmless at first glance. In this picoCTF challenge, a simple SSH banner leak was enough to escalate access and retrieve a flag from `/root/flag.txt`.
+
+This write‑up walks you through every step of the exploitation process, from information gathering to abusing symbolic links (symlinks) for privilege escalation.
+
+**Challenge Description:**
+Can you abuse the banner? The server has been leaking some crucial information on `tethys.picoctf.net <port>`. Use the leaked information to get to the server. To connect to the running application use `nc tethys.picoctf.net <port>`. From the above information abuse the machine and find the flag in the `/root` directory.
+
+<div className="pt-10">
+![Challenge Start](/writeups/picoctf-banners/picoctf-banners.jpeg)
+</div>
+
+<h2 className="text-3xl md:text-4xl font-extrabold mt-12 mb-6 text-foreground">Step 1 — Checking the Leaked SSH Banner</h2>
+
+The first port immediately reveals something interesting:
+
+<div className="pt-10">
+![Challenge Start](/writeups/picoctf-banners/picoctf-banners-1.jpg)
+</div>
+
+
+Then the leaked password is: `My_Passw@rd_@1234`
+
+<h2 className="text-3xl md:text-4xl font-extrabold mt-12 mb-6 text-foreground">Step 2 — Connecting to the “real” service</h2>
+
+<div className="pt-10">
+![Challenge Start](/writeups/picoctf-banners/picoctf-banners-2.jpg)
+</div>
+
+
+It asks some basic infosec trivia:
+- Top cybersecurity conference? → **DEFCON**
+- First phreaker (free phone calls)? → **John Draper**
+- Password? → **The leaked one.**
+
+<h2 className="text-3xl md:text-4xl font-extrabold mt-12 mb-6 text-foreground">Step 3 — Exploring the environment</h2>
+
+<div className="pt-10">
+![Challenge Start](/writeups/picoctf-banners/picoctf-banners-3.jpg)
+</div>
+
+<div className="pt-10">
+![Challenge Start](/writeups/picoctf-banners/picoctf-banners-4.jpg)
+</div>
+
+So yes — we need to keep digging.
+
+<div className="pt-10">
+![Challenge Start](/writeups/picoctf-banners/picoctf-banners-5.jpg)
+</div>
+
+I found files in `/root` directory, but we don’t have permission to read the flag file.
+
+<h2 className="text-3xl md:text-4xl font-extrabold mt-12 mb-6 text-foreground">Step 4 — Checking for SUID binaries</h2>
+
+<div className="pt-10">
+![Challenge Start](/writeups/picoctf-banners/picoctf-banners-6.jpg)
+</div>
+
+Nothing useful for direct privesc, meaning we need another method.
+
+<h2 className="text-3xl md:text-4xl font-extrabold mt-12 mb-6 text-foreground">Step 5 — Searching for writable files</h2>
+
+<div className="pt-10">
+![Challenge Start](/writeups/picoctf-banners/picoctf-banners-7.jpg)
+</div>
+
+
+The result shows:
+- `.bashrc`
+- `.profile`
+- `banner` ← **writable**
+
+The `banner` file is interesting because the service prints it every time a user connects.
+If we replace it with a symlink to the root flag: when the service reads the banner, it will instead read `/root/flag.txt`.
+
+<h2 className="text-3xl md:text-4xl font-extrabold mt-12 mb-6 text-foreground">Step 6 — Replacing the banner with a malicious symlink</h2>
+
+<div className="pt-10">
+![Challenge Start](/writeups/picoctf-banners/picoctf-banners-8.jpg)
+</div>
+
+              Create a symlink that points to the root flag.
+
+Now, the `banner` is no longer a normal file — it is a pointer to a file we normally cannot access.
+
+<h2 className="text-3xl md:text-4xl font-extrabold mt-12 mb-6 text-foreground">Step 7 — Triggering the application to read the banner</h2>
+
+<div className="pt-10">
+![Challenge Start](/writeups/picoctf-banners/picoctf-banners-9.jpg)
+</div>
+
+And just like that… we captured the flag! 🎉

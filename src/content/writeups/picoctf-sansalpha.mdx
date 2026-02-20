@@ -1,0 +1,108 @@
+---
+title: "picoCTF Write‑up — SansAlpha"
+date: "2026-02-20"
+category: "Pwn"
+tags: ["shell", "globbing", "wildcard", "bash", "restricted input"]
+excerpt: "How Wildcards Revealed the Hidden Flag in picoCTF’s SansAlpha by bypassing a restricted shell without alphabetic characters."
+image: "/writeups/picoctf-sansalpha/picoctf-sansalpha.jpeg"
+---
+
+# picoCTF Write‑up — SansAlpha
+
+
+<div className="pt-10">
+![Challenge Start](/writeups/picoctf-sansalpha/picoctf-sansalpha.jpeg)
+</div>
+
+
+
+How Wildcards Revealed the Hidden Flag in picoCTF’s SansAlpha. CTF challenges often hide their difficulty behind simple constraints. In this picoCTF puzzle, the twist was brutally simple: your keyboard “loses” all alphabet letters.
+
+
+**Challenge Description:**
+The Multiverse is within your grasp! Unfortunately, the server that contains the secrets of the multiverse is in a universe where keyboards only have numbers and (most) symbols.
+
+```bash
+ssh -p <port> ctf-player@mimas.picoctf.net
+# Use password: password
+```
+
+<h2 className="text-3xl md:text-4xl font-extrabold mt-12 mb-6 text-foreground">Step 1 — Launch instance and SSH into the server</h2>
+
+<div className="pt-10">
+![Challenge Start](/writeups/picoctf-sansalpha/picoctf-sansalpha-1.jpg)
+</div>
+
+
+<h2 className="text-3xl md:text-4xl font-extrabold mt-12 mb-6 text-foreground">Step 2 — Initial Exploration</h2>
+
+Once logged in, I realized immediately that I couldn’t type a single alphabetic character. That means:
+- No `ls`
+- No `cat`
+- No `cd`
+- No `chmod`
+- Not even `/bin/` explicitly because I can’t type “bin”
+
+The shell accepts only numbers and symbols, so I had to rely entirely on wildcards. This is where the challenge really begins.
+
+<h2 className="text-3xl md:text-4xl font-extrabold mt-12 mb-6 text-foreground">Step 3 — Using Wildcards to Navigate</h2>
+
+Bash wildcard patterns still work, even without typing letters. The ones I used the most were:
+- `*` – matches zero or more characters
+- `?` – matches exactly one character
+- `[ ]` – matches a character from a set or range
+- `[! ]` – matches anything not in the set
+
+I started by listing files in the current directory with:
+```bash
+./*
+```
+
+The system only prints one match at a time, unlike a normal shell, so it wasn’t exactly friendly. Most files gave permission denied, but the key was understanding what paths even exist.
+
+I found a path `!`, so I tried to go deeper. The path to the flag `!`, but I can’t open the file.
+
+<h2 className="text-3xl md:text-4xl font-extrabold mt-12 mb-6 text-foreground">Step 4 — Searching From Root</h2>
+
+Since I couldn’t rely on any known commands, I switched to scanning directories from root using only `?` characters:
+
+```bash
+/*/*/*
+```
+
+Using this approach, I discovered the complete path to the flag file: `/home/ctf-player/blargh/flag.txt`, which shows that we are currently inside `/home/ctf-player`. However, as expected, trying to open the file directly didn’t work because of the permission denied error.
+
+<h2 className="text-3xl md:text-4xl font-extrabold mt-12 mb-6 text-foreground">Step 5 — Finding Useful Binaries</h2>
+
+I then focused on `/bin/`, since it holds key system binaries like `ls`, `cat`, and `chmod`. Most of the commands there didn’t help for this challenge, except for `/bin/base64`, which also matches the hint given.
+
+I attempted to run: 
+```bash
+/bin/base64 /home/ctf-player/blargh/flag.txt
+```
+hoping it would output the flag encoded in Base64.
+
+**But the problem?**
+I can’t type “base64”. And using `/???/??????` matched multiple files, including unwanted ones like `/bin/base32` and `/bin/x86_64`. This caused the shell to run the wrong binary or treat arguments incorrectly.
+
+I used: 
+```bash
+/???/????64
+```
+But `/bin/x86_64` still matched because of the underscore. To exclude the underscore, I refined the pattern:
+
+```bash
+/???/[!_]???64
+```
+
+This removes matches with `_` in the fourth character. Finally, this isolated exactly one binary: the real `/bin/base64`.
+
+So, we finally got base64 of the flag which we can easily decode it.
+
+<h2 className="text-3xl md:text-4xl font-extrabold mt-12 mb-6 text-foreground">Step 6 — Decoding the Flag</h2>
+
+<div className="pt-10">
+![Challenge Start](/writeups/picoctf-sansalpha/picoctf-sansalpha-5.jpg)
+</div>
+
+And just like that… we captured the flag! 🎉

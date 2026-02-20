@@ -1,0 +1,91 @@
+---
+title: "Reverse: FunXFun Reversing Challenge"
+date: "2026-02-18"
+category: "Reverse Engineering"
+tags: ["Reverse", "Memory Dump", "Anti-Debugging", "XOR"]
+excerpt: "Analyzing an advanced reversing challenge, bypassing anti-debugging checks with memory dumps, and brute-forcing an XOR key to find the real flag."
+image: "/writeups/funxfun/funxfun_writeup_reverse.png"
+---
+
+# FunXFun: Reverse Engineering Challenge
+
+
+
+<div className="pt-10">
+![Challenge Image](/writeups/funxfun/funxfun_writeup_reverse.png)
+</div>
+
+
+
+
+<h2 className="text-3xl md:text-4xl font-extrabold mt-12 mb-6 text-foreground">1. Initial Reconnaissance</h2>
+The first step was to identify the file type and look for obvious strings.
+
+```bash
+file FunXFun
+strings FunXFun | grep "VBD"
+```
+
+**Observation:** We found `VBD{t`, which looked like a flag but turned out to be a decoy (fake flag) embedded in the code to mislead us.
+
+<h2 className="text-3xl md:text-4xl font-extrabold mt-12 mb-6 text-foreground">2. Bypassing Anti-Debugging</h2>
+When attempting to debug the program using GDB, it would immediately exit with code `01`. This indicated an Anti-Debugging check (likely `ptrace`).
+
+Instead of fighting the anti-debug logic directly, we forced the program to dump its memory while running:
+
+```bash
+# Set core dump limit to unlimited
+ulimit -c unlimited
+gdb ./FunXFun
+(gdb) run
+(gdb) gcore unpacked_memory.core
+```
+
+<h2 className="text-3xl md:text-4xl font-extrabold mt-12 mb-6 text-foreground">3. Memory Analysis & Pattern Discovery</h2>
+We searched the memory dump for the decoy and other strange strings that appeared in the Hex dump.
+
+
+```bash
+# Search for the decoy address in the dump
+strings -a -t x unpacked_memory.core | grep "VBD{t"
+# Investigating strange strings nearby
+grep -E "jA\}j|z5bh" all_strings.txt
+```
+
+**Discovery:** We found suspicious data at offset `0x4cb70`. Analysis of the hex dump showed the program was using SSE instructions (`pxor`, `pshufb`) to process data in 16-byte blocks.
+
+<h2 className="text-3xl md:text-4xl font-extrabold mt-12 mb-6 text-foreground">4. The XOR Brute-Force Attack</h2>
+Since the flag was likely XORed, we wrote a Python script to scan the entire 100MB+ memory dump for the pattern `VBD{` by trying every possible 1-byte XOR key (0-255).
+
+**Script (`solve.py`):**
+
+```python showLineNumbers
+with open("unpacked_memory.core", "rb") as f:
+    data = f.read()
+for i in range(len(data) - 20):
+    for key in range(256):
+        # Try to decrypt the first 4 bytes
+        dec = bytes([b ^ key for b in data[i:i+4]])
+        if dec == b"VBD{":
+            full_dec = bytes([b ^ key for b in data[i:i+32]])
+            print(f"Found at {hex(i)} with key {hex(key)}: {full_dec}")
+```
+
+**Result:** The script found the real flag at offset `0x49490` with Key: `0xd8`. However, the output was truncated: 
+`Found: b'VBD{dID_y..................E_or'`
+
+<h2 className="text-3xl md:text-4xl font-extrabold mt-12 mb-6 text-foreground">5. Completing the Flag (Final Extraction)</h2>
+Because the initial script only read 32 bytes, the flag was cut off. We ran a final one-liner to extract a larger chunk of memory at that specific offset and decrypt it until the closing brace `}`.
+
+```bash
+python3 -c "with open('unpacked_memory.core', 'rb') as f: f.seek(0x49490); data = f.read(64); print(''.join(chr(b ^ 0xd8) for b in data).split('}')[0] + '}')"
+```
+
+<h2 className="text-3xl md:text-4xl font-extrabold mt-12 mb-6 text-foreground">6. Conclusion</h2>
+The challenge used a Double Mapping technique:
+1. **A Plaintext Decoy:** `VBD{t` to trick `strings` users.
+2. **An XORed Real Flag:** Hidden at a different memory segment, encrypted with `0xd8`.
+
+By dumping the memory and using a brute-force XOR search, we bypassed all anti-debugging protections and recovered the full flag.
+
+Final Flag: `VBD{dID_yo..................___~}`
