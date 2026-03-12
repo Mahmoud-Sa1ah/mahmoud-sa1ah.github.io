@@ -127,5 +127,5 @@ export const certificationsData = [
     { name: "Cisco Cybersecurity Engineering (DEPI)", image: "/Cybersecurity as a logo not cert.png" },
     { name: "AWS Academy Cloud Architecting", image: "/aws.png" },
     { name: "eCIR Prep (eLearnSecurity Certified Incident Responder Prep)", image: "/ecir cert .png" },
-    { name: "Linux Administration 1", image: "/linux admin 1.png" }
+    { name: "Certified  Blue Team Practitioner (CBTP) – The SecOps Group", image: "/linux admin 1.png" }
 ];
